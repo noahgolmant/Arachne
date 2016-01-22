@@ -1,9 +1,13 @@
 package com.arachne;
 
+import java.util.HashMap;
+import java.util.Set;
+
 /**
  * @class Scheduler
  * @description Distributes URLs to process across cluster.
  * @author Noah Golmant
+ * @author Ravi Pandya
  * @written 19 Jan 2016
  */
 public class Scheduler {
@@ -46,16 +50,58 @@ public class Scheduler {
 	 * Get URLs to process and distribute to cluster
 	 * @return list of URLs to process
 	 */
-	private String[] getURLs() {		
+	private String[] getURLs() {		/*TODO: delete, uses stream and gets single URL at a time*/
 		return null;
 	}
 	
 	/**
-	 * Distribute URLs to process across the worker nodes.
-	 * @param urls URLs to process
-	 * @param nodes Addresses of worker nodes.
+	 * @param url A raw URL to be parsed
+	 * @return domain The domain of the URL passed in
 	 */
-	private void distributeURLs(String[] urls, String[] nodes) {
+	private String getDomain(String url){
+		boolean found = false;
+		String domain = "";
+		
+		for(int i=0; i < url.length(); i++){
+			if(url.charAt(i) != '/'){
+				url = url.substring(1);
+			} else {
+				found = true;
+				break;
+			}
+		}
+		
+		if(found){
+			char c = url.charAt(2);
+			while(c != '/'){
+				domain += c;
+			}
+			return domain;
+		}
+		return null;
+	}
+	
+	/**
+	 * Distribute URL to a single node
+	 * @param url URL to process
+	 * @param nodes Addresses of worker nodes and associated arrays of recently processed URLs
+	 */
+	private void distributeURL(String url, HashMap nodes) {
+		Set<String> nodeAddresses = nodes.keySet();
+		
+		HashMap<String, Integer> commonDomains = new HashMap();
+		
+		for (String address: nodeAddresses){
+			String[] recents = nodes.get(address);
+			for(int i=0; i < recents.length; i++){
+				if(commonDomains.containsKey(address)){
+					commonDomains.put(address, commonDomains.get(address)+1);
+				} else {
+					commonDomains.put(getDomain(address), 0);
+				}
+			}
+		}
+		
 		
 	}
 	
