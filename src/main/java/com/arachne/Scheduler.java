@@ -1,6 +1,8 @@
 package com.arachne;
 
+import java.util.AbstractQueue;
 import java.util.HashMap;
+import java.util.Queue;
 import java.util.Set;
 
 /**
@@ -11,6 +13,11 @@ import java.util.Set;
  * @written 19 Jan 2016
  */
 public class Scheduler {
+	
+	/**
+	 * The queue of URLs yet to be processed
+	 */
+	private URLQueue toProcess = new URLQueue();
 	
 	/**
 	 * Scheduler singleton instance.
@@ -26,6 +33,11 @@ public class Scheduler {
 	 * Number of nodes in compute cluster.
 	 */
 	private final int NUM_NODES = 4;
+	
+	/**
+	 * A map of domain names to the number of times it appears in the recently processed URLs
+	 */
+	private HashMap<String, Integer> commonDomains = new HashMap();
 	
 	/**
 	 * Connection to stream of URLs from database
@@ -62,6 +74,7 @@ public class Scheduler {
 		boolean found = false;
 		String domain = "";
 		
+		//searches the URL until if finds a / 
 		for(int i=0; i < url.length(); i++){
 			if(url.charAt(i) != '/'){
 				url = url.substring(1);
@@ -86,21 +99,33 @@ public class Scheduler {
 	 * @param url URL to process
 	 * @param nodes Addresses of worker nodes and associated arrays of recently processed URLs
 	 */
-	private void distributeURL(String url, HashMap nodes) {
+	private void distributeURL(String url, HashMap<String, String[]> nodes) {
 		Set<String> nodeAddresses = nodes.keySet();
+		String newDomain = getDomain(url);
 		
-		HashMap<String, Integer> commonDomains = new HashMap();
+		if(commonDomains.get(newDomain) > 2){
+			
+		}
 		
+		for(String address: nodeAddresses){
+			
+		}
+		
+		/*TODO: put in separate update function*/
 		for (String address: nodeAddresses){
 			String[] recents = nodes.get(address);
 			for(int i=0; i < recents.length; i++){
-				if(commonDomains.containsKey(address)){
-					commonDomains.put(address, commonDomains.get(address)+1);
+				String domain = getDomain(recents[i]);
+				if(commonDomains.containsKey(domain)){
+					//if it already exists, increments the counter for that domain by one
+					commonDomains.put(domain, commonDomains.get(domain)+1); 
 				} else {
-					commonDomains.put(getDomain(address), 0);
+					//inserts the new domain to the HashMap of common domains
+					commonDomains.put(domain, 0);
 				}
 			}
 		}
+		
 		
 		
 	}
