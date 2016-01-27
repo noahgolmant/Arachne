@@ -11,7 +11,7 @@ object DustBuster {
         the substring, the text before that substr, the
         text after that substr and (*TODO*) the ratio
         of the size_range to the doc_sketch for the URL */
-        def possibleSubstrings(line:String) : List[Tuple3[String,String,String]] = {
+        def possibleSubstrings(line:String) : Iterable[Any] = {
             val len = min(line.length() - 1, MaximumSubstringSize);
             for {
                 i <- 1 to len
@@ -22,13 +22,13 @@ object DustBuster {
                 val prefix = line.substring(0, j);
                 val suffix = line.substring(j+i, len);
                 (substr, prefix, suffix);
-            }
+            };
         }
 
         val BucketOverflowSize = 1000;
         val MaxSubstringLengthDiff = 4;
 
-        def filterBuckets(envelope:Tuple2[String,String], substrings:Iterable[String]) : Tuple2[Tuple2[String,String],Tuple2[String,String]] = {
+        def filterBuckets(envelope:Tuple2[String,String], substrings:Iterable[String]) : Iterable[Any] = {
         
             def likelySimilar(substr1: String, substr2: String) : Boolean = {
                 /* TODO use size ratio or document sketch */
@@ -47,14 +47,14 @@ object DustBuster {
             } yield {
                 if (likelySimilar(substr1, substr2))
                     ((substr1,substr2),(prefix,suffix))
-            }
+            };
         }
 
         return urlData.flatMap(possibleSubstrings) /* get all possible substrings for each url */
                       /* create buckets based on unique prefix suffix pairs */
                       .map((substr,prefix,suffix) => ((prefix, suffix), substr)).groupByKey()
                       /* create potential rules and group by substring pairs (a,b) where one rule = a |--> b transform */
-                      .map(filterBucket).filter(_.nonEmpty).groupByKey()
+                      .flatMap(filterBucket).filter(_.nonEmpty).groupByKey()
                       /* calculate rule support and sort by best rule */
                       .mapValues(envelopes => envelopes.size)
                       .sortBy(_._2); /* sort by second element of (rule, support) tuple i.e. support count */
