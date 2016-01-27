@@ -17,11 +17,6 @@ import java.util.regex.Pattern;
 public class Scheduler {
 	
 	/**
-	 * The queue of URLs yet to be processed
-	 */
-	private URLQueue recentURLs = new URLQueue(100);
-	
-	/**
 	 * Scheduler singleton instance.
 	 */
 	private static Scheduler instance = null;
@@ -42,6 +37,11 @@ public class Scheduler {
 	private final double OVERLOAD_THRESHOLD = 15;
 	
 	/**
+	 * The number of URLs to be considered recent
+	 */
+	private final int RECENT = 100;
+	
+	/**
 	 * The group number in the URL RegEx that refers to the domain name (.+?(?=\\.))
 	 */
 	private final int URL_REGEX_GROUP_NO = 6;
@@ -52,14 +52,19 @@ public class Scheduler {
 	private String[] nodeAddresses = new String[NUM_NODES];
 	
 	/**
-	 * The index of the node that was previously assigned a URL to process
+	 * The index of the node that will be assigned a URL to process
 	 */
-	private int prevNode = 0;
+	private int currNode = 0;
 	
 	/**
 	 * HashMap containing the node number and the domain it last processed
 	 */
 	private HashMap<Integer, String> lastProcessed = new HashMap<Integer, String>();
+	
+	/**
+	 * The queue of URLs yet to be processed
+	 */
+	private URLQueue recentURLs = new URLQueue(RECENT);
 	
 	/**
 	 * Connection to stream of URLs from database
@@ -97,13 +102,12 @@ public class Scheduler {
 		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.))(\\.)([a-z]{2}[a-z]{1})(.*)");
 		Matcher m = p.matcher(url);
 		
-		String found = "";
+		String domain = "";
 		if(m.find()){
-			found = m.group(URL_REGEX_GROUP_NO);
-			return found;
+			domain = m.group(URL_REGEX_GROUP_NO);
+			return domain;
 		}
 		return "Domain not found";
-		
 	}
 	
 	
@@ -112,9 +116,41 @@ public class Scheduler {
 	 * @param url URL to process
 	 * @param nodes Addresses of worker nodes and associated arrays of recently processed URLs
 	 */
-	private void distributeURL(String url, HashMap<String, String[]> nodes) {
+	private void distributeURL(String url) {
 		String domain = getDomain(url);
-						
+		
+		if(recentURLs.percentage(domain) > OVERLOAD_THRESHOLD){
+			/*TODO shuffle URL back into URL stream to be processed*/
+			return;
+		}
+		
+		/* Checks if the current node last processed the same domain name, if so, then it will 
+		 * check the subsequent nodes until it finds one that did not, as part of the politeness 
+		 * policy. If all nodes last went to this domain, the URL will be shuffled to the back 
+		 * of the URLQueue. 
+		 */
+		if(lastProcessed.get(currNode) == domain){
+			int i = currNode + 1;
+
+			while(i != currNode){
+				if(i == NUM_NODES){i=0;}
+				if(lastProcessed.get(i) != domain){
+					lastProcessed.put(i, domain);
+					currNode += 1;
+					if(currNode == NUM_NODES){currNode=0;}
+					/*TODO: actually distribute the URL to the current node*/
+					recentURLs.add(url);
+					return;
+				} else {
+					
+				}
+			}
+		} else {
+			lastProcessed.put(currNode, domain);
+			/*TODO: actually distribute the URL to the current node*/
+			recentURLs.add(url);
+			return;
+		}
 	}
 	
 	public static void main(String[] args) {

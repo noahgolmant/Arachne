@@ -3,6 +3,8 @@ package com.arachne;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @class URLQueue
@@ -20,7 +22,7 @@ public class URLQueue{
 	 * A HashMap with each distinct domain paired with the number of times it has been accessed
 	 * recently
 	 */
-	private HashMap<String, Integer> distribution = new HashMap();
+	private HashMap<String, Integer> distribution = new HashMap<String, Integer>();
 	
 	/**
 	 * The total number of URLs stored in the recent queue
@@ -43,8 +45,15 @@ public class URLQueue{
 	 * @return domain The domain of the URL passed in
 	 */
 	public static String getDomain(String url){
-		/*TODO: use regex to determine the domain of a URL*/
-		return url;
+		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.))(\\.)([a-z]{2}[a-z]{1})(.*)");
+		Matcher m = p.matcher(url);
+		
+		String found = "";
+		if(m.find()){
+			found = m.group(6);
+			return found;
+		}
+		return "Domain not found";
 	}
 	
 	/**
