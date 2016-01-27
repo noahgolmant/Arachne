@@ -4,20 +4,22 @@ import java.util.AbstractQueue;
 import java.util.HashMap;
 import java.util.Queue;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @class Scheduler
  * @description Distributes URLs to process across cluster.
  * @author Noah Golmant
  * @author Ravi Pandya
- * @written 19 Jan 2016
+ * @written 19 January 2016
  */
 public class Scheduler {
 	
 	/**
 	 * The queue of URLs yet to be processed
 	 */
-	private URLQueue toProcess = new URLQueue();
+	private URLQueue recentURLs = new URLQueue(100);
 	
 	/**
 	 * Scheduler singleton instance.
@@ -35,9 +37,29 @@ public class Scheduler {
 	private final int NUM_NODES = 4;
 	
 	/**
-	 * A map of domain names to the number of times it appears in the recently processed URLs
+	 * The threshold as a percent for deciding whether a domain appears in the queue too often
 	 */
-	private HashMap<String, Integer> commonDomains = new HashMap();
+	private final double OVERLOAD_THRESHOLD = 15;
+	
+	/**
+	 * The group number in the URL RegEx that refers to the domain name (.+?(?=\\.))
+	 */
+	private final int URL_REGEX_GROUP_NO = 6;
+
+	/**
+	 * An array containing the addresses of all of the nodes
+	 */
+	private String[] nodeAddresses = new String[NUM_NODES];
+	
+	/**
+	 * The index of the node that was previously assigned a URL to process
+	 */
+	private int prevNode = 0;
+	
+	/**
+	 * HashMap containing the node number and the domain it last processed
+	 */
+	private HashMap<Integer, String> lastProcessed = new HashMap<Integer, String>();
 	
 	/**
 	 * Connection to stream of URLs from database
@@ -62,7 +84,7 @@ public class Scheduler {
 	 * Get URLs to process and distribute to cluster
 	 * @return list of URLs to process
 	 */
-	private String[] getURLs() {		/*TODO: delete, uses stream and gets single URL at a time*/
+	private String getURLs() {
 		return null;
 	}
 	
@@ -71,28 +93,19 @@ public class Scheduler {
 	 * @return domain The domain of the URL passed in
 	 */
 	private String getDomain(String url){
-		boolean found = false;
-		String domain = "";
+		//RegEx to check if URL matches the correct format, parentheses are for grouping
+		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.))(\\.)([a-z]{2}[a-z]{1})(.*)");
+		Matcher m = p.matcher(url);
 		
-		//searches the URL until if finds a / 
-		for(int i=0; i < url.length(); i++){
-			if(url.charAt(i) != '/'){
-				url = url.substring(1);
-			} else {
-				found = true;
-				break;
-			}
+		String found = "";
+		if(m.find()){
+			found = m.group(URL_REGEX_GROUP_NO);
+			return found;
 		}
+		return "Domain not found";
 		
-		if(found){
-			char c = url.charAt(2);
-			while(c != '/'){
-				domain += c;
-			}
-			return domain;
-		}
-		return null;
 	}
+	
 	
 	/**
 	 * Distribute URL to a single node
@@ -100,34 +113,8 @@ public class Scheduler {
 	 * @param nodes Addresses of worker nodes and associated arrays of recently processed URLs
 	 */
 	private void distributeURL(String url, HashMap<String, String[]> nodes) {
-		Set<String> nodeAddresses = nodes.keySet();
-		String newDomain = getDomain(url);
-		
-		if(commonDomains.get(newDomain) > 2){
-			
-		}
-		
-		for(String address: nodeAddresses){
-			
-		}
-		
-		/*TODO: put in separate update function*/
-		for (String address: nodeAddresses){
-			String[] recents = nodes.get(address);
-			for(int i=0; i < recents.length; i++){
-				String domain = getDomain(recents[i]);
-				if(commonDomains.containsKey(domain)){
-					//if it already exists, increments the counter for that domain by one
-					commonDomains.put(domain, commonDomains.get(domain)+1); 
-				} else {
-					//inserts the new domain to the HashMap of common domains
-					commonDomains.put(domain, 0);
-				}
-			}
-		}
-		
-		
-		
+		String domain = getDomain(url);
+						
 	}
 	
 	public static void main(String[] args) {

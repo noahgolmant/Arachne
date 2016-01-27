@@ -1,13 +1,14 @@
 package com.arachne;
 
-
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Set;
 
 /**
  * @class URLQueue
  * @description Represents the list of recently processed URLs by all the nodes
  * @author Ravi Pandya
+ * @written 23 January 2016
  */
 public class URLQueue{
 	/**
@@ -20,6 +21,11 @@ public class URLQueue{
 	 * recently
 	 */
 	private HashMap<String, Integer> distribution = new HashMap();
+	
+	/**
+	 * The total number of URLs stored in the recent queue
+	 */
+	private int totalURLs = 0;
 	
 	/**
 	 * The maximum length of the queue, or what will be considered 'recent'
@@ -37,6 +43,7 @@ public class URLQueue{
 	 * @return domain The domain of the URL passed in
 	 */
 	public static String getDomain(String url){
+		/*TODO: use regex to determine the domain of a URL*/
 		return url;
 	}
 	
@@ -79,8 +86,18 @@ public class URLQueue{
 		
 		if(this.distribution.containsKey(domain)){
 			this.distribution.put(domain, this.distribution.get(domain)+1);
+			this.totalURLs += 1;
 		} else {
 			this.distribution.put(domain, 0);
 		}
+	}
+	
+	/**
+	 * Returns the percentage recent URLs processed this domain represents
+	 * @param domain The domain to be processed
+	 * @return 
+	 */
+	public double percentage(String domain){
+		return (double)(this.distribution.get(domain))/this.totalURLs*100;
 	}
 }
