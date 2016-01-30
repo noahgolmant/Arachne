@@ -1,8 +1,14 @@
 import org.apache.spark.SparkContext
 import scala.math.min
+import collections.mutable.HashMap
+import scala.util.control.Breaks._
 
 object DustBuster {
 
+    /**
+     * Detect all likely rules where each rule is defined as a transformation
+     * a |---> b are some substrings of a URL.
+     */
     def detectLikelyRules(urlData:RDD[String]) : RDD[Tuple2[String, Integer]] = {
 
         val MaximumSubstringSize = 12;
@@ -58,6 +64,61 @@ object DustBuster {
                       /* calculate rule support and sort by best rule */
                       .mapValues(envelopes => envelopes.size)
                       .sortBy(_._2); /* sort by second element of (rule, support) tuple i.e. support count */
+    }
+
+    def eliminateRedundantRules(likelyRules:RDD[Tuples2[Tuple2[String,String],Integer]]) : RDD[Tuple2[String,String]] = {
+
+        val MaxWindowSize = 50; /* tunable size of "window" of rules to compare one rule to */
+        val MaxRelativeDeficiency = 6; /* tunable max support difference between rules in same window */
+        val MaxAbsoluteDeficiency = 10;
+
+        var rules = likelyRules.collect(); /* pray we don't overload the driver memory */
+        
+        /* determines if one rule refines another e.g. the support of the first is a subset of the support of the second.
+         * For rule1 = a --> b and rule 2 = a' --> b', checks if a is a substring of a', replaces a by b and check if the outcome is b'.
+         */
+        def refines(rule1:Tuple2[String,String], rule2:Tuple2[String,String]) : Boolean = {
+            if (!(rule2[0] contains rule1[0]))
+                return False;
+
+            var lastIndex = 0;
+            val a = rule1[0];
+            val b = rule1[1];
+            val a_prime = rule2[0];
+            val b_prime = rule2[1];
+            while (lastIndex != -1) {
+                lastIndex = a_prime.indexOf(a, lastIndex);
+                if (lastIndex != -1) {
+                    val withReplacedA = (a_prime substring lastIndex) concat b concat (a_prime substring (lastIndex+a.length()));
+                    if (withReplacedA equals b_prime)
+                        return true;
+                    lastIndex += rule1[0].length();
+                }
+            }
+            return false;
+        }
+
+        
+        var eliminatedRules = new HashMap[String, Boolean]() { override def default(key:Boolean) = false;
+        for (i <- 0 to rules.length()) {
+            var rule = rules[i];
+            if (!eliminatedRules(rule)) {
+                breakable { for (j <- 1 to min(MaxWindowSize, rules.length())) {
+                    if (rule[1] - rules[i+j][1] > max(MaxRelativeDeficiency - rule[1], MaxAbsoluteDeficiency))
+                        break
+                    /* check if R[i] refines R[i+j] or R[i+j] refies R[i].
+                     * Refines if support of one is a subset of the support of the other.
+                     * (TODO check if this should compare number of shared URLs rather than support size) */
+                    if (refines(rule[0], rules[i+j][0]))
+                        eliminatedRules += rules[i+j]
+                    else if (refines(rule[i+j][0], rule[0])) {
+                        eliminatedRules += rules[i]
+                        break
+                    }
+                } }
+            }
+        }
+        return sc.parallelize(rules.filter(!eliminatedRules(_))); /* re-parallelize after dealing with windowed filtering that requires indices */ 
     }
 
     def main(args:Array[String]) = {
