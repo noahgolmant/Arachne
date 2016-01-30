@@ -1,14 +1,18 @@
 package com.arachne;
 
+import java.util.AbstractQueue;
 import java.util.HashMap;
+import java.util.Queue;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @class Scheduler
  * @description Distributes URLs to process across cluster.
  * @author Noah Golmant
  * @author Ravi Pandya
- * @written 19 Jan 2016
+ * @written 19 January 2016
  */
 public class Scheduler {
 	
@@ -26,6 +30,41 @@ public class Scheduler {
 	 * Number of nodes in compute cluster.
 	 */
 	private final int NUM_NODES = 4;
+	
+	/**
+	 * The threshold as a percent for deciding whether a domain appears in the queue too often
+	 */
+	private final double OVERLOAD_THRESHOLD = 15;
+	
+	/**
+	 * The number of URLs to be considered recent
+	 */
+	private final int RECENT = 100;
+	
+	/**
+	 * The group number in the URL RegEx that refers to the domain name (.+?(?=\\.))
+	 */
+	private final int URL_REGEX_GROUP_NO = 6;
+
+	/**
+	 * An array containing the addresses of all of the nodes
+	 */
+	private String[] nodeAddresses = new String[NUM_NODES];
+	
+	/**
+	 * The index of the node that will be assigned a URL to process
+	 */
+	private int currNode = 0;
+	
+	/**
+	 * HashMap containing the node number and the domain it last processed
+	 */
+	private HashMap<Integer, String> lastProcessed = new HashMap<Integer, String>();
+	
+	/**
+	 * The queue of URLs yet to be processed
+	 */
+	private URLQueue recentURLs = new URLQueue(RECENT);
 	
 	/**
 	 * Connection to stream of URLs from database
@@ -50,7 +89,7 @@ public class Scheduler {
 	 * Get URLs to process and distribute to cluster
 	 * @return list of URLs to process
 	 */
-	private String[] getURLs() {		/*TODO: delete, uses stream and gets single URL at a time*/
+	private String getURLs() {
 		return null;
 	}
 	
@@ -59,50 +98,59 @@ public class Scheduler {
 	 * @return domain The domain of the URL passed in
 	 */
 	private String getDomain(String url){
-		boolean found = false;
+		//RegEx to check if URL matches the correct format, parentheses are for grouping
+		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.))(\\.)([a-z]{2}[a-z]{1})(.*)");
+		Matcher m = p.matcher(url);
+		
 		String domain = "";
-		
-		for(int i=0; i < url.length(); i++){
-			if(url.charAt(i) != '/'){
-				url = url.substring(1);
-			} else {
-				found = true;
-				break;
-			}
-		}
-		
-		if(found){
-			char c = url.charAt(2);
-			while(c != '/'){
-				domain += c;
-			}
+		if(m.find()){
+			domain = m.group(URL_REGEX_GROUP_NO);
 			return domain;
 		}
-		return null;
+		return "Domain not found";
 	}
+	
 	
 	/**
 	 * Distribute URL to a single node
 	 * @param url URL to process
 	 * @param nodes Addresses of worker nodes and associated arrays of recently processed URLs
 	 */
-	private void distributeURL(String url, HashMap nodes) {
-		Set<String> nodeAddresses = nodes.keySet();
+	private void distributeURL(String url) {
+		String domain = getDomain(url);
 		
-		HashMap<String, Integer> commonDomains = new HashMap();
-		
-		for (String address: nodeAddresses){
-			String[] recents = nodes.get(address);
-			for(int i=0; i < recents.length; i++){
-				if(commonDomains.containsKey(address)){
-					commonDomains.put(address, commonDomains.get(address)+1);
-				} else {
-					commonDomains.put(getDomain(address), 0);
-				}
-			}
+		if(recentURLs.percentage(domain) > OVERLOAD_THRESHOLD){
+			/*TODO shuffle URL back into URL stream to be processed*/
+			return;
 		}
 		
-		
+		/* Checks if the current node last processed the same domain name, if so, then it will 
+		 * check the subsequent nodes until it finds one that did not, as part of the politeness 
+		 * policy. If all nodes last went to this domain, the URL will be shuffled to the back 
+		 * of the URLQueue. 
+		 */
+		if(lastProcessed.get(currNode) == domain){
+			int i = currNode + 1;
+
+			while(i != currNode){
+				if(i == NUM_NODES){i=0;}
+				if(lastProcessed.get(i) != domain){
+					lastProcessed.put(i, domain);
+					currNode += 1;
+					if(currNode == NUM_NODES){currNode=0;}
+					/*TODO: actually distribute the URL to the current node*/
+					recentURLs.add(url);
+					return;
+				} else {
+					
+				}
+			}
+		} else {
+			lastProcessed.put(currNode, domain);
+			/*TODO: actually distribute the URL to the current node*/
+			recentURLs.add(url);
+			return;
+		}
 	}
 	
 	public static void main(String[] args) {
