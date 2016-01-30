@@ -1,9 +1,6 @@
 package com.arachne;
 
-import java.util.AbstractQueue;
 import java.util.HashMap;
-import java.util.Queue;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
