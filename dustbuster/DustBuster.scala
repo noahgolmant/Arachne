@@ -1,6 +1,7 @@
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
+import scala.collection.TraversableOnce
 import scala.math.{max, min}
 import scala.util.control.Breaks._
 
@@ -9,13 +10,16 @@ import scala.util.control.Breaks._
   */
 object DustBuster {
 
+    type Rule = (String,String)
+    type Envelope = (String,String)
+
     val sc = new SparkContext()
 
     /**
       * Detect all likely rules where each rule is defined as a transformation
       * a |---> b are some substrings of a URL.
       */
-    def detectLikelyRules(urlData: RDD[String]): RDD[(String, Integer)] = {
+    def detectLikelyRules(urlData: RDD[String]): RDD[(Rule,Int)] = {
 
         val MaximumSubstringSize = 12
 
@@ -23,7 +27,7 @@ object DustBuster {
         the substring, the text before that substr, the
         text after that substr and (*TODO*) the ratio
         of the size_range to the doc_sketch for the URL */
-        def possibleSubstrings(line: String): Iterable[Any] = {
+        def possibleSubstrings(line: String): TraversableOnce[(Envelope, String)] = {
             val len = min(line.length - 1, MaximumSubstringSize)
             for {
                 i <- 1 to len
@@ -33,7 +37,8 @@ object DustBuster {
                 val substr = line substring (j, j + i)
                 val prefix = line substring(0, j)
                 val suffix = line substring(j + i, len)
-                ((prefix, suffix), substr)
+                val envelope = (line.substring(0, j), line.substring(j+i, len))
+                (envelope, substr)
                 //(substr, prefix, suffix)
             }
         }
@@ -41,46 +46,51 @@ object DustBuster {
         val BucketOverflowSize = 1000
         val MaxSubstringLengthDiff = 4
 
-        def filterBuckets(envelope: (String,String), substrings: Iterable[String]): Iterable[Any] = {
+        def filterBuckets(envelopeWithSubstrings: (Envelope, Iterable[String])): TraversableOnce[(Rule, Envelope)] = {
+            val envelope = envelopeWithSubstrings._1
+            val substrings = envelopeWithSubstrings._2
 
             def likelySimilar(substr1: String, substr2: String): Boolean = {
                 /* TODO use size ratio or document sketch */
                 Math.abs(substr1.length - substr2.length) < MaxSubstringLengthDiff
             }
-            if (substrings.size == 1 || substrings.size > BucketOverflowSize)
-                return None
 
-            val (prefix, suffix) = envelope
+            //if (substrings.size == 1 || substrings.size > BucketOverflowSize)
+            //    return List((("",""), envelope))
+
             val substringsLst = new Array[String](substrings.size)
             substrings.copyToArray(substringsLst)
             for {
                 substr1 <- substringsLst
                 substr2 <- substringsLst
-            } yield {
                 if (likelySimilar(substr1, substr2))
-                    ((substr1, substr2), (prefix, suffix))
+            } yield {
+                val rule = (substr1,substr2)
+                (rule, envelope)
             }
         }
 
-        return urlData.flatMap(possibleSubstrings) /* get all possible substrings for each url */
-            .groupByKey() /* create buckets based on unique prefix suffix pairs */
-            .flatMap(filterBucket).filter(_.nonEmpty).groupByKey()  /* create potential rules and group by substring pairs (a,b) where one rule = a |--> b transform */
-            .mapValues(envelopes => envelopes.size) /* calculate rule support and sort by best rule */
-            .sortBy(_._2) /* sort by second element of (rule, support) tuple i.e. support count */
+        return urlData
+            .flatMap(possibleSubstrings) /* get all possible substrings for each url */
+            .groupByKey()                /* create buckets based on unique envelope */
+            .flatMap(filterBuckets)      /* create potential rules */
+            .groupByKey()                /* group support of rules that are the same together */
+            .mapValues(envelopes => envelopes.size) /* get the rule support, i.e. how many urls follow it */
+            .sortBy(_._2)                /* sort by the most supported rules */
     }
 
-    def eliminateRedundantRules(likelyRules: RDD[((String, String), Integer)): RDD[(String, String)] = {
+    def eliminateRedundantRules(likelyRules: RDD[(Rule,Int)]): RDD[Rule] = {
 
         val MaxWindowSize = 50 /* tunable size of "window" of rules to compare one rule to */
         val MaxRelativeDeficiency = 6 /* tunable max support difference between rules in same window */
         val MaxAbsoluteDeficiency = 10
 
-        val rules = likelyRules.collect() /* pray we don't overload the driver memory */
+        val rules = likelyRules.collect();
 
         /* determines if one rule refines another e.g. the support of the first is a subset of the support of the second.
          * For rule1 = a --> b and rule 2 = a' --> b', checks if a is a substring of a', replaces a by b and check if the outcome is b'.
          */
-        def refines(rule1: (String,String), rule2: (String,String)): Boolean = {
+        def refines(rule1: Rule, rule2: Rule): Boolean = {
             if (!(rule2._1 contains rule1._1))
                 return false
 
@@ -101,7 +111,7 @@ object DustBuster {
             false
         }
 
-        var eliminatedRules = Array[(String,String)]()
+        var eliminatedRules = Array[Rule]()
         for (i <- 0 to rules.length) {
             val rule = rules(i)._1
             val support = rules(i)._2
@@ -127,12 +137,17 @@ object DustBuster {
                 }
             }
         }
-        sc.parallelize(rules.filter(!eliminatedRules.contains(_))) /* re-parallelize after dealing with windowed filtering that requires indices */
+
+
+
+        sc.parallelize(rules.map(rule => rule._1).filter(!eliminatedRules.contains(_)))/* re-parallelize after dealing with windowed filtering that requires indices */
     }
 
     def main(args: Array[String]) = {
         var urlData = sc.textFile(args(0))
         urlData = urlData.map(line => "^" + line + "$") /* tokenize urls */
         var likelyRules = detectLikelyRules(urlData)
+        var filteredRules = eliminateRedundantRules(likelyRules)
+        filteredRules.take(10).foreach(println(_))
     }
 }
