@@ -24,7 +24,7 @@ object DustBuster {
       * Detect all likely rules where each rule is defined as a transformation
       * a |---> b are some substrings of a URL.
       */
-    def detectLikelyRules(urlData: RDD[String]): RDD[(Rule,Int)] = {
+    def detectLikelyRules(urlData: RDD[(String, Int)]): RDD[(Rule,Int)] = {
 
         val MaximumSubstringSize = 12
 
@@ -32,7 +32,10 @@ object DustBuster {
         the substring, the text before that substr, the
         text after that substr and (*TODO*) the byte size
         range of urls that contain that substring*/
-        def possibleSubstrings(line: String): TraversableOnce[(Envelope, String)] = {
+        def possibleSubstrings(lineWithSupport: (String, Int)): TraversableOnce[(Envelope, (String, Int))] = {
+            val line = lineWithSupport._1
+            val support = lineWithSupport._2
+
             val len = min(line.length - 1, MaximumSubstringSize)
             for {
                 i <- 1 to len
@@ -42,35 +45,38 @@ object DustBuster {
                  * which are the parts of the URL that occur before and after that substring */
                 val substr = line substring (j, j + i)
                 val envelope = (line.substring(0, j) /* prefix */, line.substring(j+i, len) /* suffix */)
-                (envelope, substr)
+                (envelope, (substr, support))
             }
         }
 
         val BucketOverflowSize = 1000
-        val MaxSubstringLengthDiff = 4
+        //val MaxSubstringLengthDiff = 4
+        val MaxPercentSizeDifference =  0.20
 
-        def filterBuckets(envelopeWithSubstrings: (Envelope, Iterable[String])): TraversableOnce[(Rule, Envelope)] = {
+        def filterBuckets(envelopeWithSubstrings: (Envelope, Iterable[(String,Int)])): TraversableOnce[(Rule, Envelope)] = {
             val envelope = envelopeWithSubstrings._1
             val substrings = envelopeWithSubstrings._2
 
-            def likelySimilar(substr1: String, substr2: String): Boolean = {
-                /* TODO use size ratio or document sketch */
-                Math.abs(substr1.length - substr2.length) < MaxSubstringLengthDiff
+            /* compares support (2nd element of tuple) of each rule
+            *  and makes sure it isn't a trivial transformation (x \--> x) */
+            def likelySimilar(substr1: (String, Int), substr2: (String,Int)): Boolean = {
+                !(substr1._1 equals substr2._1) &&
+                Math.abs(substr1._2 - substr2._2) / substr1._2 < MaxPercentSizeDifference
             }
 
             if (substrings.size == 1 || substrings.size > BucketOverflowSize)
                 return List((("",""), envelope)) /* return nothing if the rule is too vague */
 
             /* copy TraversableOnce to array to allow nested iteration over set */
-            val substringsLst = new Array[String](substrings.size)
+            val substringsLst = new Array[(String,Int)](substrings.size)
             substrings.copyToArray(substringsLst)
             /* emit a rule if the two substrings describe a similar transformation */
             for {
                 substr1 <- substringsLst
                 substr2 <- substringsLst
-                if (likelySimilar(substr1, substr2))
+                if likelySimilar(substr1, substr2)
             } yield {
-                val rule = (substr1,substr2)
+                val rule = (substr1._1,substr2._1)
                 (rule, envelope)
             }
         }
@@ -126,12 +132,12 @@ object DustBuster {
            within a a specified window of indices
          */
         var eliminatedRules = Array[Rule]()
-        for (i <- 0 to rules.length) {
+        for (i <- 0 to rules.length-1) {
             val rule = rules(i)._1
             val support = rules(i)._2
             if (!(eliminatedRules contains rule)) {
                 breakable {
-                    for (j <- 1 to min(MaxWindowSize, rules.length)) {
+                    for (j <- 1 to min(MaxWindowSize, rules.length - i - 1)) {
                         val windowRule = rules(i+j)._1
                         val windowSupport = rules(i+j)._2
                         if (support - windowSupport > max(MaxRelativeDeficiency - support, MaxAbsoluteDeficiency))
@@ -161,27 +167,26 @@ object DustBuster {
         val conf = new SparkConf().setAppName("DustBuster")
         sc = new SparkContext(conf)
 
-        if (args.length == 0)
+        if (args.length == 0) {
+            println("Input URL list required")
             sys.exit(0)
+        }
 
         /* map CSV to url, page-size tuples */
         /* CSV has url, page-size-in-bytes on each line */
         val textData = sc.textFile(args(0))
-        /*def splitter = (line:String) => {
+        def splitter = (line:String) => {
             val data = line.split(",");
             try {
                 (data(0), data(1).toInt)
             } catch {
-            case e: Exception => (data(0), -1)
+            case e: Exception => (data(0), 0)
             }
         }
-        val urlData = textData.map(splitter) */
-
-        /* use just the url until filtering takes into account similar page sizes */
-        val urlData = textData.map(line => line.split(",")(0))
+        val urlData = textData.map(splitter).filter(pair => pair._2 > 0)
         val likelyRules = detectLikelyRules(urlData)
-        likelyRules.take(10).foreach(println(_))
-        //val filteredRules = eliminateRedundantRules(likelyRules)
-        //filteredRules.take(10).foreach(println(_))
+            .filter(tuple => !tuple._1.equals(("",""))) /* clear empty rules */
+        val filteredRules = eliminateRedundantRules(likelyRules)
+        filteredRules.sortBy(_._2).collect().foreach(println(_))
     }
 }
