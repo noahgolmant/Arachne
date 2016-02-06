@@ -4,7 +4,8 @@ import java.util.regex.*;
 
 public class URLRegExTest {
 	public static String getDomain(String url){	
-		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.))(\\.)([a-z]{2}[a-z]{1})(.*)");
+		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.(com|co|edu|gov|net|org)))" +
+				"(\\.)([a-z]{2}[a-z]{1})(.*)");
 		Matcher m = p.matcher(url);
 		
 		String found = "";
@@ -24,6 +25,6 @@ public class URLRegExTest {
 		return m.group(1);
 	}
 	public static void main(String[] args){
-		System.out.println(getDomain("http://www.cuteoverload.com"));
+		System.out.println(getDomain("http://www.inst.eecs.berkeley.edu"));
 	}
 }
