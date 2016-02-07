@@ -12,32 +12,32 @@ import java.util.regex.Pattern;
  * @written 19 January 2016
  */
 public class Scheduler {
-	
+
 	/**
 	 * Scheduler singleton instance.
 	 */
 	private static Scheduler instance = null;
-	
+
 	/**
 	 * Number of URLS to retrieve and distribute across cluster.
 	 */
 	private final int NUM_URLS_TO_RETRIEVE = 1000;
-	
+
 	/**
 	 * Number of nodes in compute cluster.
 	 */
 	private final int NUM_NODES = 4;
-	
+
 	/**
 	 * The threshold as a percent for deciding whether a domain appears in the queue too often
 	 */
 	private final double OVERLOAD_THRESHOLD = 15;
-	
+
 	/**
 	 * The number of URLs to be considered recent
 	 */
 	private final int RECENT = 100;
-	
+
 	/**
 	 * The group number in the URL RegEx that refers to the domain name (.+?(?=\\.))
 	 */
@@ -47,32 +47,32 @@ public class Scheduler {
 	 * An array containing the addresses of all of the nodes
 	 */
 	private String[] nodeAddresses = new String[NUM_NODES];
-	
+
 	/**
 	 * The index of the node that will be assigned a URL to process
 	 */
 	private int currNode = 0;
-	
+
 	/**
 	 * HashMap containing the node number and the domain it last processed
 	 */
 	private HashMap<Integer, String> lastProcessed = new HashMap<Integer, String>();
-	
+
 	/**
 	 * The queue of URLs yet to be processed
 	 */
 	private URLQueue recentURLs = new URLQueue(RECENT);
-	
+
 	/**
 	 * Connection to stream of URLs from database
 	 */
 	private URLConnection urlConnection = null;
-	
+
 	/**
 	 * Address of node in cluster to which we connect
 	 */
 	private String nodeAddress = "127.0.0.1"; /* TODO: get cluster address on startup */
-	
+
 	/**
 	 * Protected scheduler singleton constructor.
 	 */
@@ -81,7 +81,7 @@ public class Scheduler {
 		urlConnection.connect();
 		System.out.println(urlConnection.describeCluster());
 	}
-	
+
 	/**
 	 * Get URLs to process and distribute to cluster
 	 * @return list of URLs to process
@@ -89,7 +89,7 @@ public class Scheduler {
 	private String getURLs() {
 		return null;
 	}
-	
+
 	/**
 	 * @param url A raw URL to be parsed
 	 * @return domain The domain of the URL passed in
@@ -98,7 +98,7 @@ public class Scheduler {
 		//RegEx to check if URL matches the correct format, parentheses are for grouping
 		Pattern p = Pattern.compile("(https?:)(\\/)(\\/)(w{3})(\\.)(.+?(?=\\.))(\\.)([a-z]{2}[a-z]{1})(.*)");
 		Matcher m = p.matcher(url);
-		
+
 		String domain = "";
 		if(m.find()){
 			domain = m.group(URL_REGEX_GROUP_NO);
@@ -106,8 +106,8 @@ public class Scheduler {
 		}
 		return "Domain not found";
 	}
-	
-	
+
+
 	/**
 	 * Distribute URL to a single node
 	 * @param url URL to process
@@ -115,16 +115,16 @@ public class Scheduler {
 	 */
 	private void distributeURL(String url) {
 		String domain = getDomain(url);
-		
+
 		if(recentURLs.percentage(domain) > OVERLOAD_THRESHOLD){
 			/*TODO shuffle URL back into URL stream to be processed*/
 			return;
 		}
-		
-		/* Checks if the current node last processed the same domain name, if so, then it will 
-		 * check the subsequent nodes until it finds one that did not, as part of the politeness 
-		 * policy. If all nodes last went to this domain, the URL will be shuffled to the back 
-		 * of the URLQueue. 
+
+		/* Checks if the current node last processed the same domain name, if so, then it will
+		 * check the subsequent nodes until it finds one that did not, as part of the politeness
+		 * policy. If all nodes last went to this domain, the URL will be shuffled to the back
+		 * of the URLQueue.
 		 */
 		if(lastProcessed.get(currNode) == domain){
 			int i = currNode + 1;
@@ -139,7 +139,7 @@ public class Scheduler {
 					recentURLs.add(url);
 					return;
 				} else {
-					
+
 				}
 			}
 		} else {
@@ -149,11 +149,11 @@ public class Scheduler {
 			return;
 		}
 	}
-	
+
 	public static void main(String[] args) {
 		Scheduler.getInstance();
 	}
-	
+
 	/**
 	 * Scheduler singleton access method.
 	 */
