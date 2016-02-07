@@ -199,6 +199,6 @@ public class FilterBolt extends BaseRichBolt {
     }
 
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
-        outputFieldsDeclarer.declareStream("crawler_stream", boltFields);
+        outputFieldsDeclarer.declareStream(CRAWLER_STREAM, boltFields);
     }
 }
