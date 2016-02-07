@@ -111,7 +111,6 @@ public class Scheduler {
 	/**
 	 * Distribute URL to a single node
 	 * @param url URL to process
-	 * @param nodes Addresses of worker nodes and associated arrays of recently processed URLs
 	 */
 	private void distributeURL(String url) {
 		String domain = getDomain(url);

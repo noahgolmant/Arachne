@@ -6,11 +6,21 @@ import backtype.storm.topology.OutputFieldsDeclarer;
 import backtype.storm.topology.base.BaseRichBolt;
 import backtype.storm.tuple.Fields;
 import backtype.storm.tuple.Tuple;
+import backtype.storm.tuple.Values;
+import backtype.storm.utils.Utils;
+import com.google.common.collect.MapMaker;
+import edu.uci.ics.crawler4j.crawler.CrawlConfig;
+import edu.uci.ics.crawler4j.fetcher.PageFetcher;
 import edu.uci.ics.crawler4j.robotstxt.RobotstxtConfig;
+import edu.uci.ics.crawler4j.robotstxt.RobotstxtServer;
 import edu.uci.ics.crawler4j.url.URLCanonicalizer;
 import edu.uci.ics.crawler4j.url.WebURL;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Date;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 /**
@@ -24,9 +34,11 @@ import java.util.regex.Pattern;
  */
 public class FilterBolt extends BaseRichBolt {
 
+    private static final Logger logger = LoggerFactory.getLogger(FilterBolt.class);
+
     Map<String,String> stormConfig;
     OutputCollector    outputCollector;
-    public static final Fields boltFields = new Fields("url", "canonical_url", "start_time");
+    public static final Fields boltFields = new Fields("url", "start_time");
 
     /* Last time we updated the DustBuster ruleset */
     private static long lastDustBusterUpdate;
@@ -43,7 +55,16 @@ public class FilterBolt extends BaseRichBolt {
     };
 
     /* Robots.txt checker */
-    RobotstxtConfig robotstxtConfig;
+    private RobotstxtServer robotstxtServer;
+
+    /* Track last time we hit a given domain */
+    transient static final ConcurrentMap<String, Long> domainTracker
+            = new MapMaker().makeMap();
+    private static long domainDelayTime;
+    private static final long DEFAULT_DOMAIN_DELAY_TIME = 1000;
+
+    /* output fields to the actual crawler */
+    private final String CRAWLER_STREAM = "crawler_stream";
 
     /**
      * Class representing a DUST rule determined by some
@@ -73,8 +94,23 @@ public class FilterBolt extends BaseRichBolt {
 
 
     public void prepare(Map map, TopologyContext topologyContext, OutputCollector outputCollector) {
-        this.stormConfig = map;
+        this.stormConfig = (Map<String,String>)map;
         this.outputCollector = outputCollector;
+
+        /* get configured domain check delay time */
+        try {
+            domainDelayTime = Integer.valueOf(stormConfig.get("domain.delay"));
+        } catch (Exception e) {
+            logger.warn("Invalid value for config field: domain.delay");
+            domainDelayTime = DEFAULT_DOMAIN_DELAY_TIME;
+        }
+
+        /* setup crawler4j robots.txt check */
+        CrawlConfig config = new CrawlConfig();
+        config.setIncludeHttpsPages(true);
+        PageFetcher pageFetcher = new PageFetcher(config);
+        RobotstxtConfig robotstxtConfig = new RobotstxtConfig();
+        robotstxtServer = new RobotstxtServer(robotstxtConfig, pageFetcher);
     }
 
     private boolean extensionFilter(WebURL url) {
@@ -115,6 +151,7 @@ public class FilterBolt extends BaseRichBolt {
 
     public void execute(Tuple tuple) {
         String urlString = tuple.getStringByField("url");
+        Date feedDate = (Date)tuple.getValueByField("date");
 
         /* get canonicalized URL */
         WebURL url = new WebURL();
@@ -122,29 +159,46 @@ public class FilterBolt extends BaseRichBolt {
 
         /* apply extension filters */
         if (extensionFilter(url)) {
-            /* TODO log filtered URL */
+            logger.info("Filtered by extension: {}", url);
             outputCollector.ack(tuple);
             return;
         }
 
         /* check robots.txt for politeness */
+        if (!robotstxtServer.allows(url)) {
+            logger.warn("Robots.txt denied access to: {}", url);
+            outputCollector.ack(tuple);
+            return;
+        }
+
+        /* check for domain access time limit */
+        Long lastAccessTime = domainTracker.get(url.getDomain());
+        long now = System.currentTimeMillis();
+        if (lastAccessTime != null && now - lastAccessTime < domainDelayTime) {
+            long throttleTime = domainDelayTime - (now - lastAccessTime);
+            logger.warn("Throttling access to: {}. Sleeping for {} ms.", url, throttleTime);
+            Utils.sleep(throttleTime);
+        }
 
         /* access and apply DustBuster rules */
         url = dustbusterCanonicalizer(url);
         if (url.getURL().equals(DUSTBUSTER_FILTERED)) {
-            /* TODO log dustbuster filtered url */
+            logger.info("Filtered by DustBuster: {}", url);
             outputCollector.ack(tuple);
             return;
         }
 
         /* send to processing bolt */
+        outputCollector.emit(CRAWLER_STREAM, new Values(url.getURL(), feedDate));
+        outputCollector.ack(tuple);
+
     }
 
     private static void updateDustBusterRuleset() {
-
+        /* TODO access cassandra db rule schema */
     }
 
     public void declareOutputFields(OutputFieldsDeclarer outputFieldsDeclarer) {
-
+        outputFieldsDeclarer.declareStream("crawler_stream", boltFields);
     }
 }
