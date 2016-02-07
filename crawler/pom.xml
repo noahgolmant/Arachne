@@ -6,11 +6,27 @@
   <name>arachne</name>
   <description>arachne web crawler</description>
   <dependencies>
-  	<dependency>
+
+      <dependency>
+          <groupId>org.apache.storm</groupId>
+          <artifactId>storm-core</artifactId>
+          <version>0.10.0</version>
+      </dependency>
+      <dependency>
   		<groupId>com.datastax.cassandra</groupId>
   		<artifactId>cassandra-driver-core</artifactId>
   		<version>3.0.0-rc1</version>
   		<classifier>shaded</classifier>
   	</dependency>
+      <dependency>
+          <groupId>edu.uci.ics</groupId>
+          <artifactId>crawler4j</artifactId>
+          <version>4.2</version>
+      </dependency>
+      <dependency>
+          <groupId>com.google.guava</groupId>
+          <artifactId>guava</artifactId>
+          <version>19.0</version>
+      </dependency>
   </dependencies>
 </project>
