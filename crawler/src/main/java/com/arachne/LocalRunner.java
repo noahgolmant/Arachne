@@ -1,8 +1,12 @@
 package com.arachne;
 
+import backtype.storm.Config;
 import backtype.storm.LocalCluster;
 import backtype.storm.generated.StormTopology;
 import backtype.storm.topology.TopologyBuilder;
+import com.arachne.bolts.CrawlerBolt;
+import com.arachne.bolts.FilterBolt;
+import com.arachne.spouts.URLSpout;
 
 /**
  * Created by noah on 2/8/16.
@@ -17,14 +21,48 @@ public class LocalRunner {
     public static void main(String[] args) {
         LocalCluster cluster = new LocalCluster();
 
-        /* todo load config properties */
+        //Load properties file
+        /*Properties props = new Properties();
+        try {
+            InputStream is = LocalRunner.class.getClassLoader().getResourceAsStream("scraper.properties");
 
+            if (is == null)
+                throw new RuntimeException("Classpath missing scraper.properties file");
+
+            props.load(is);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }*/
+
+        Config conf = new Config();
+        conf.setDebug(true);
+
+        //Copy properies to storm config
+        /*for (String name : props.stringPropertyNames()) {
+            conf.put(name, props.getProperty(name));
+        }*/
+
+        conf.setMaxTaskParallelism(Runtime.getRuntime().availableProcessors());
+        conf.setDebug(false);
+
+        cluster.submitTopology("arachne-crawler", conf, createTopology());
+
+        //Utils.sleep(10000);
+        //cluster.killTopology("arachne-crawler");
+        //cluster.shutdown();
     }
 
     static StormTopology createTopology() {
         TopologyBuilder builder = new TopologyBuilder();
 
-        /* todo actually assign the bolts/spouts to the topology */
+        builder.setSpout("url_spout", new URLSpout(), 1);
+
+        builder.setBolt("filter_bolt", new FilterBolt(), 2)
+                .shuffleGrouping("url_spout");
+
+        builder.setBolt("crawler_bolt", new CrawlerBolt(), 3)
+                .shuffleGrouping("filter_bolt", "filter_stream");
+
         return builder.createTopology();
     }
 }

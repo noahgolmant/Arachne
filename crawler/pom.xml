@@ -6,7 +6,6 @@
   <name>arachne</name>
   <description>arachne web crawler</description>
   <dependencies>
-
       <dependency>
           <groupId>org.apache.storm</groupId>
           <artifactId>storm-core</artifactId>
