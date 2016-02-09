@@ -5,6 +5,7 @@ import backtype.storm.LocalCluster;
 import backtype.storm.generated.StormTopology;
 import backtype.storm.topology.TopologyBuilder;
 import com.arachne.bolts.CrawlerBolt;
+import com.arachne.bolts.ExtractionBolt;
 import com.arachne.bolts.FilterBolt;
 import com.arachne.spouts.URLSpout;
 
@@ -61,7 +62,10 @@ public class LocalRunner {
                 .shuffleGrouping("url_spout");
 
         builder.setBolt("crawler_bolt", new CrawlerBolt(), 3)
-                .shuffleGrouping("filter_bolt", "filter_stream");
+                .shuffleGrouping("filter_bolt", LocalRunner.FILTER_STREAM);
+
+        builder.setBolt("extraction_bolt", new ExtractionBolt(), 3)
+                .shuffleGrouping("crawler_bolt", LocalRunner.CRAWLER_STREAM);
 
         return builder.createTopology();
     }

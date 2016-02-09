@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by noah on 2/6/16.
@@ -124,7 +125,10 @@ public class CrawlerBolt extends BaseRichBolt {
 
             /* emit the URL's html to the article text extraction bolt */
             outputCollector.emit(LocalRunner.CRAWLER_STREAM, new Values(urlString, time, htmlText));
-            logger.info("URL HTML: {}", htmlText);
+            /* emit the set of outgoing URLs to submit back to the stream */
+            Set<WebURL> outgoingURLs = parseData.getOutgoingUrls();
+            /* TODO outputCollector.emit(...) */
+
             outputCollector.ack(tuple);
 
 

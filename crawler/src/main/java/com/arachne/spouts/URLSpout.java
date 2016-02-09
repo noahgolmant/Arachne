@@ -14,7 +14,8 @@ import java.util.Map;
 
 public class URLSpout extends BaseRichSpout {
 
-    String testURLs[] = {"http://www.google.com", "http://www.cnn.com", "http://nytimes.com"};
+    String testURLs[] = {"http://www.cnn.com/2016/02/08/politics/michael-bloomberg-2016-election/index.html",
+            "http://www.nytimes.com/2016/02/09/us/politics/new-hampshire-voters-hear-candidates-final-appeals-before-primary.html?hp&action=click&pgtype=Homepage&clickSource=story-heading&module=a-lede-package-region&region=top-news&WT.nav=top-news&_r=0", "http://nytimes.com"};
     static int i = 0;
 
     SpoutOutputCollector outputCollector;
