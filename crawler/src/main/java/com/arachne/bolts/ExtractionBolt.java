@@ -25,17 +25,19 @@ import java.util.Map;
  */
 public class ExtractionBolt extends BaseRichBolt {
 
-    private static final Logger logger = LoggerFactory.getLogger(CrawlerBolt.class);
+    private static final Logger logger = LoggerFactory.getLogger(ExtractionBolt.class);
 
     private Map<String,String> stormConfig;
     private OutputCollector outputCollector;
+
+    public static final Fields boltFields = new Fields("url", "date", "text");
 
     public void prepare(Map map, TopologyContext topologyContext, OutputCollector outputCollector) {
         this.stormConfig = (Map<String,String>)map;
         this.outputCollector = outputCollector;
     }
 
-    public static Fields boltFields = new Fields("url", "text", "date");
+    //public static Fields boltFields = new Fields("url", "date", "text");
 
     private String getArticleText(String url, String html) throws Exception{
         TextDocument td = new BoilerpipeSAXInput(new InputSource(
@@ -53,7 +55,7 @@ public class ExtractionBolt extends BaseRichBolt {
             logger.info("extracted text for {}: {}", url, td.getContent());
             return td.getContent();
         }*/
-        logger.info("extracted text for {}: {}", url, td.getContent());
+        //logger.info("extracted text for {}: {}", url, td.getContent());
         return td.getContent();
     }
 
@@ -71,7 +73,7 @@ public class ExtractionBolt extends BaseRichBolt {
         try {
             String articleText = getArticleText(url, html);
             if (articleText != null)
-                outputCollector.emit(LocalRunner.EXTRACTION_STREAM, new Values(url, articleText, date));
+                outputCollector.emit(LocalRunner.EXTRACTION_STREAM, new Values(url, date, articleText));
             outputCollector.ack(tuple);
         } catch (Exception e) {
             outputCollector.fail(tuple);

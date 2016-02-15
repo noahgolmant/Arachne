@@ -7,6 +7,7 @@ import backtype.storm.topology.TopologyBuilder;
 import com.arachne.bolts.CrawlerBolt;
 import com.arachne.bolts.ExtractionBolt;
 import com.arachne.bolts.FilterBolt;
+import com.arachne.bolts.TokenizerBolt;
 import com.arachne.spouts.URLSpout;
 
 /**
@@ -18,6 +19,7 @@ public class LocalRunner {
     public static String EXTRACTION_STREAM = "extraction_stream";
     public static String URL_STREAM        = "url_stream";
     public static String CRAWLER_STREAM    = "crawler_stream";
+    public static String TOKENIZER_STREAM  = "tokenizer_stream";
 
     public static void main(String[] args) {
         LocalCluster cluster = new LocalCluster();
@@ -66,6 +68,9 @@ public class LocalRunner {
 
         builder.setBolt("extraction_bolt", new ExtractionBolt(), 3)
                 .shuffleGrouping("crawler_bolt", LocalRunner.CRAWLER_STREAM);
+
+        builder.setBolt("tokenizer_bolt", new TokenizerBolt(), 4)
+                .shuffleGrouping("extraction_bolt", LocalRunner.EXTRACTION_STREAM);
 
         return builder.createTopology();
     }

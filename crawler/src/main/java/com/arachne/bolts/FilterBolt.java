@@ -50,9 +50,9 @@ public class FilterBolt extends BaseRichBolt {
     /* Types of links and files we don't want to crawl */
     private static Pattern FILTERS[] = new Pattern[] {
             Pattern.compile("\\.(ico|css|sit|eps|wmf|zip|ppt|mpg|xls|gz|rpm|tgz|mov|exe|bmp|js)$"),
-            Pattern.compile("[\\?\\*\\!\\@\\=]"),
+            //Pattern.compile("[\\?\\*\\!\\@\\=]"),
             Pattern.compile("^(file|ftp|mailto):"),
-            Pattern.compile(".*(/[^/]+)/[^/]+\1/[^/]+\1/")
+            //Pattern.compile(".*(/[^/]+)/[^/]+\1/[^/]+\1/")
     };
 
     /* Robots.txt checker */
