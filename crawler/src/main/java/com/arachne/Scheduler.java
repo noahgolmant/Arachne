@@ -66,7 +66,7 @@ public class Scheduler {
 	/**
 	 * Connection to stream of URLs from database
 	 */
-	private URLConnection urlConnection = null;
+	private DBConnection urlConnection = null;
 
 	/**
 	 * Address of node in cluster to which we connect
@@ -77,8 +77,8 @@ public class Scheduler {
 	 * Protected scheduler singleton constructor.
 	 */
 	protected Scheduler() {
-		urlConnection = new URLConnection(nodeAddress);
-		urlConnection.connect();
+		//urlConnection = new DBConnection(nodeAddress);
+		//urlConnection.connect();
 		System.out.println(urlConnection.describeCluster());
 	}
 

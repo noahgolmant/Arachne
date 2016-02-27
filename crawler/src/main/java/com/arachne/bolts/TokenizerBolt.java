@@ -103,6 +103,7 @@ public class TokenizerBolt extends BaseRichBolt {
             tokenStr.append(s + " -- ");
         }
         logger.info("TOKENIZED TEXT: {}", tokenStr.toString());*/
+
         outputCollector.emit(LocalRunner.TOKENIZER_STREAM, new Values(url, date, text, tokenizedText));
 
     }

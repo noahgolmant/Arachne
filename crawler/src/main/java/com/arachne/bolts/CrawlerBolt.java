@@ -67,7 +67,8 @@ public class CrawlerBolt extends BaseRichBolt {
 
             /* check status code for retry/failure */
             if (statusCode != HttpStatus.SC_OK) {
-                if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY || statusCode == HttpStatus.SC_MOVED_TEMPORARILY) {
+                if (statusCode == HttpStatus.SC_MOVED_PERMANENTLY || statusCode == HttpStatus.SC_MOVED_TEMPORARILY ||
+                        statusCode == HttpStatus.SC_SEE_OTHER) {
                     String movedTo = pageFetchResult.getMovedToUrl();
                     if (movedTo != null) {
                         // feed back new url to stream
@@ -91,7 +92,7 @@ public class CrawlerBolt extends BaseRichBolt {
             }
 
             /* check for redirect */
-            if (!pageFetchResult.getFetchedUrl().equals(url.getURL())) {
+            if (!url.getURL().equals(pageFetchResult.getFetchedUrl())) {
                 logger.info("redirected from {} to {}", url, pageFetchResult.getFetchedUrl());
             }
 
@@ -128,6 +129,10 @@ public class CrawlerBolt extends BaseRichBolt {
             /* emit the set of outgoing URLs to submit back to the stream */
             Set<WebURL> outgoingURLs = parseData.getOutgoingUrls();
             /* TODO outputCollector.emit(...) */
+            for(WebURL w : outgoingURLs) {
+                outputCollector.emit(LocalRunner.FILTER_STREAM, new Values(w.getURL(), Calendar.getInstance().getTime()));
+                logger.info("Outgoing urls from {}: {}", urlString, w.getURL());
+            }
 
             outputCollector.ack(tuple);
 

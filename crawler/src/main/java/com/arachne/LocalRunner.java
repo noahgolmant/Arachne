@@ -20,9 +20,14 @@ public class LocalRunner {
     public static String URL_STREAM        = "url_stream";
     public static String CRAWLER_STREAM    = "crawler_stream";
     public static String TOKENIZER_STREAM  = "tokenizer_stream";
+    public static String CLASSIFIER_STREAM = "classifier_stream";
 
     public static void main(String[] args) {
+        DBConnection.initialize("localhost");
+        URLSpout.getURLS();
         LocalCluster cluster = new LocalCluster();
+
+
 
         //Load properties file
         /*Properties props = new Properties();
@@ -36,6 +41,8 @@ public class LocalRunner {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }*/
+
+
 
         Config conf = new Config();
         conf.setDebug(true);
@@ -71,6 +78,10 @@ public class LocalRunner {
 
         builder.setBolt("tokenizer_bolt", new TokenizerBolt(), 4)
                 .shuffleGrouping("extraction_bolt", LocalRunner.EXTRACTION_STREAM);
+
+        /*builder.setBolt("classifier_bolt", new ClassifierBolt(), 3)
+                .shuffleGrouping("tokenizer_bolt", LocalRunner.CLASSIFIER_STREAM);*/
+
 
         return builder.createTopology();
     }
